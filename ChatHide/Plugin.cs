@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using Dalamud.Game.ClientState;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Command;
 using Dalamud.Plugin;
 using FFXIVClientStructs.FFXIV.Component.GUI;
-using System.Runtime.InteropServices;
 
 namespace ChatHide
 {
