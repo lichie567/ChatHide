@@ -1,11 +1,14 @@
 ﻿using System;
+using System.Numerics;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Dalamud.Game.ClientState;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Command;
 using Dalamud.Plugin;
+using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Component.GUI;
+using ImGuiNET;
 
 namespace ChatHide
 {
@@ -15,18 +18,20 @@ namespace ChatHide
 
         public string Name => "ChatHide";
 
-        private DalamudPluginInterface _pluginInterface;
-        private CommandManager _commandManager;
-        private ClientState _clientState;
-        private Condition _condition;
+        private const string AddonName = "ChatLog";
+
+        private IDalamudPluginInterface _pluginInterface;
+        private ICommandManager _commandManager;
+        private IClientState _clientState;
+        private ICondition _condition;
         private bool _enabled = false;
         private bool _visible = true;
 
         public Plugin(
-            ClientState clientState,
-            CommandManager commandManager,
-            Condition condition,
-            DalamudPluginInterface pluginInterface
+            IClientState clientState,
+            ICommandManager commandManager,
+            ICondition condition,
+            IDalamudPluginInterface pluginInterface
         )
         {
             _commandManager = commandManager;
@@ -57,11 +62,11 @@ namespace ChatHide
 
             if (_enabled)
             {
-                bool focused = this.CheckIfFocused("ChatLog");
-                if (_visible != focused)
+                bool show = this.CheckIfHovered(AddonName) || this.CheckIfFocused(AddonName);
+                if (_visible != show)
                 {
-                    UpdateAddonVisibility("ChatLog", focused);
-                    _visible = focused;
+                    UpdateAddonVisibility(AddonName, show);
+                    _visible = show;
                 }
             }
         }
@@ -72,20 +77,19 @@ namespace ChatHide
             _enabled ^= true;
             if (!_enabled)
             {
-                UpdateAddonVisibility("ChatLog", true);
+                UpdateAddonVisibility(AddonName, true);
             }
         }
 
         public unsafe void UpdateAddonVisibility(string addonName, bool visible)
         {
-            AtkStage* stage = AtkStage.GetSingleton();
+            AtkStage* stage = AtkStage.Instance();
             AtkUnitList* loadedUnitsList = &stage->RaptureAtkUnitManager->AtkUnitManager.AllLoadedUnitsList;
-            AtkUnitBase** addonList = &loadedUnitsList->AtkUnitEntries;
 
             for (var i = 0; i < loadedUnitsList->Count; i++)
             {
-                AtkUnitBase* addon = addonList[i];
-                string? name = Marshal.PtrToStringAnsi(new IntPtr(addon->Name));
+                AtkUnitBase* addon = *(AtkUnitBase**)Unsafe.AsPointer(ref loadedUnitsList->Entries[i]);
+                string? name = addon->NameString;
 
                 if (name != null && name.StartsWith(addonName))
                 {
@@ -107,18 +111,43 @@ namespace ChatHide
             }
         }
 
-        private unsafe bool CheckIfFocused(string name)
+        private unsafe bool CheckIfHovered(string addonName)
         {
-            var stage = AtkStage.GetSingleton();
-            var focusedUnitsList = &stage->RaptureAtkUnitManager->AtkUnitManager.FocusedUnitsList;
-            var focusedAddonList = &focusedUnitsList->AtkUnitEntries;
+            var stage = AtkStage.Instance();
 
+            AtkUnitList* loadedUnitsList = &stage->RaptureAtkUnitManager->AtkUnitManager.AllLoadedUnitsList;
+            for (var i = 0; i < loadedUnitsList->Count; i++)
+            {
+                AtkUnitBase* addon = *(AtkUnitBase**)Unsafe.AsPointer(ref loadedUnitsList->Entries[i]);
+                string? name = addon->NameString;
+
+                if (name != null && name.Equals(addonName))
+                {
+                    Vector2 a = new Vector2(addon->X, addon->Y);
+                    Vector2 b = new Vector2(a.X + addon->GetScaledWidth(true), a.Y + addon->GetScaledHeight(true));
+                    Vector2 mouse = ImGui.GetMousePos();
+                    
+                    if (mouse.X >= a.X && mouse.X <= b.X &&
+                        mouse.Y >= a.Y && mouse.Y <= b.Y)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private unsafe bool CheckIfFocused(string addonName)
+        {
+            var stage = AtkStage.Instance();
+            var focusedUnitsList = &stage->RaptureAtkUnitManager->AtkUnitManager.FocusedUnitsList;
             for (var i = 0; i < focusedUnitsList->Count; i++)
             {
-                var addon = focusedAddonList[i];
-                var addonName = Marshal.PtrToStringAnsi(new IntPtr(addon->Name));
+                AtkUnitBase* addon = *(AtkUnitBase**)Unsafe.AsPointer(ref focusedUnitsList->Entries[i]);
+                string? name = addon->NameString;
 
-                if (addonName == name)
+                if (addonName.Equals(name))
                 {
                     return true;
                 }
@@ -139,7 +168,7 @@ namespace ChatHide
             {
                 if (_enabled || !_visible)
                 {
-                    UpdateAddonVisibility("ChatLog", true);
+                    UpdateAddonVisibility(AddonName, true);
                 }
 
                 _commandManager.RemoveHandler("/ch");
