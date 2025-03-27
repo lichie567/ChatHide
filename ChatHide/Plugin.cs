@@ -2,7 +2,6 @@
 using System.Numerics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Command;
 using Dalamud.Plugin;
@@ -14,7 +13,7 @@ namespace ChatHide
 {
     public class Plugin : IDalamudPlugin
     {
-        public static readonly string Version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.1.0.0";
+        public static readonly string Version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.1.0.1";
 
         public string Name => "ChatHide";
 
